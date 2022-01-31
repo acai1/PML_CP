@@ -1,0 +1,89 @@
+---
+title: "Practical Machine Learning Final Project"
+author: "Anna Cai"
+date: "31/01/2022"
+output: html_document
+---
+
+## Overview
+
+This is the final report for Coursera’s Practical Machine Learning course, as part of the Data Science Specialization track offered by John Hopkins.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. This is the “classe” variable in the training set. We train 4 models: Decision Tree, Random Forest, Gradient Boosted Trees, Support Vector Machine using k-folds cross validation on the training set. We then predict using a validation set randomly selected from the training csv data to obtain the accuracy and out of sample error rate. Based on those numbers, we decide on the best model, and use it to predict 20 cases using the test csv set.
+
+## Research Scenario
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Loading packages and data
+
+```{r loading packages}
+library(ggplot2)
+library(lattice)
+library(caret)
+library(rattle)
+library(kernlab)
+library(corrplot)
+set.seed(1234)
+
+dftrain <- read.csv("pml-training.csv")
+dftest <- read.csv("pml-testing.csv")
+
+dim(dftrain)
+dim(dftest)
+```
+
+160 variables for both datasets, with 19622 observations in the training set and 20 in the test set.
+
+## Data Cleaning
+
+```{r data cleaning}
+View(dftrain) #can see there are NA variables and empty cells
+#remove NA variables
+dftrain <- dftrain[,colMeans(is.na(dftrain))<.9]
+dftrain <- dftrain[,-c(1:7)] #streamlining dataset by removing irrelevant variables
+nvz <- nearZeroVar(dftrain) #removing near zero variance variables
+dftrain <- dftrain[,-nvz]
+dim(dftrain) #check how many variables there are now (53)
+```
+We now need to separate the training set into sub training sets and validation sets for our model testing.
+
+```{r splitting dataset}
+inTrain <- createDataPartition(y=dftrain$classe, p=.07, list = FALSE)
+train <- dftrain[inTrain,]
+valid <- dftrain[-inTrain,]
+
+```
+
+
+## Model testing
+Let's do Random Forest Modelling and Decision Tree Modelling. There are other models, but for the sake of keeping this concise, we will look at those two.
+
+We will set up control to use a 3-fold cross validation.
+
+```{r}
+fitcontrol <- trainControl(method = "cv", number = 3, verboseIter = FALSE)
+```
+### Random Forest Modelling
+```{r random forest modelling}
+fit_rf <- train(classe~., data = train, method = "rf", trControl = fitcontrol, tuneLength =5)
+pred_rf <- predict(fit_rf,valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+### Decision Tree Modelling
+```{r dt modelling}
+fit_trees <- train(classe~., data = train, method = "rpart", trControl = fitcontrol, tuneLength = 5)
+pred_trees <- predict(fit_trees, valid)
+cmtrees <- confusionMatrix(pred_trees, factor(valid$classe))
+cmtrees
+```
+### Comparing the two models accuracy and out of sample error
+It appears that the better model is the random forests model, with 0.9357 accuracy and 0.004 out of sample error rate.
+
+##RF predictions on test set
+Predicting the classe (5 levels) outcome for 20 cases with the RF model.
+```{r}
+pred <- predict(fit_rf, dftest)
+print(pred)
+```
